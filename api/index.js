@@ -68,6 +68,7 @@ const Credito = require('../models/Credito');
 const Oficina = require('../models/Oficina');
 const Gerente = require('../models/Gerente');
 const Barrio = require('../models/Barrio');
+const Pago = require('../models/Pago');
 const { crearCredito } = require('../controllers/creditoController');
 const { 
   crearGerente,
@@ -81,96 +82,11 @@ const {
   crearCobradorOficina,
   estadisticasGerente
 } = require('../controllers/gerenteController');
-
-// CÓDIGO PROTEGIDO PARA REGISTRO DE OFICINA
-const CODIGO_OFICINA = '123456789';
+const telegramController = require('../controllers/telegramController');
 
 // RUTA DE PRUEBA: Escribe http://localhost:3000/api/test en tu navegador
 app.get('/api/test', (req, res) => {
   res.json({ mensaje: "¡El backend está vivo y respondiendo!" });
-});
-
-// RUTAS GET (Necesarias para el Front)
-app.get('/api/cobradores', async (req, res) => {
-  try {
-    const cobradores = await Cobrador.find();
-    res.json(cobradores);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// LOGIN DE COBRADOR - Devuelve datos limpios con officinaID
-app.post('/api/cobradores/login', async (req, res) => {
-  try {
-    const { usuario, password } = req.body;
-    const cobrador = await Cobrador.findOne({ usuario, password });
-    
-    if (!cobrador) {
-      return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
-    }
-
-    if (cobrador.activo === false) {
-      return res.status(401).json({ error: 'Esta cuenta ha sido desactivada. Contacta con la oficina.' });
-    }
-
-    res.json({
-      _id: cobrador._id,
-      nombre: cobrador.nombre,
-      usuario: cobrador.usuario,
-      cedula: cobrador.cedula,
-      celular: cobrador.celular,
-      direccion: cobrador.direccion,
-      officinaID: cobrador.officinaID,
-      activo: cobrador.activo,
-      rol: 'cobrador'
-    });
-  } catch (error) {
-    res.status(400).json({ error: error.message });
-  }
-});
-
-app.get('/api/clientes', async (req, res) => {
-  try {
-    const clientes = await Cliente.find();
-    res.json(clientes);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// OBTENER TODAS LAS OFICINAS
-app.get('/api/oficinas', async (req, res) => {
-  try {
-    const oficinas = await Oficina.find();
-    res.json(oficinas);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// LOGIN DE OFICINA - Devuelve datos limpios sin relaciones
-app.post('/api/oficinas/login', async (req, res) => {
-  try {
-    const { usuario, password } = req.body;
-    const oficina = await Oficina.findOne({ usuario, password });
-    
-    if (!oficina) {
-      return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
-    }
-
-    res.json({
-      _id: oficina._id,
-      nombre: oficina.nombre,
-      usuario: oficina.usuario,
-      cedula: oficina.cedula,
-      celular: oficina.celular,
-      direccion: oficina.direccion,
-      rol: 'oficina'
-    });
-  } catch (error) {
-    res.status(400).json({ error: error.message });
-  }
 });
 
 // ============================================
@@ -250,97 +166,7 @@ app.get('/api/gerentes/:gerenteID/estadisticas', estadisticasGerente);
 // FIN RUTAS DEL GERENTE
 // ============================================
 
-// RUTA PARA CREAR UN USUARIO DE PRUEBA
-app.post('/api/crear-usuario-prueba', async (req, res) => {
-  try {
-    // Primero verifica si ya existe
-    const existe = await Cobrador.findOne({ usuario: 'admin' });
-    
-    if (existe) {
-      return res.json({ mensaje: 'Usuario admin ya existe', usuario: 'admin', password: '123456' });
-    }
-    
-    // Si no existe, lo crea
-    const cobradorPrueba = new Cobrador({
-      nombre: 'Administrador',
-      cedula: '123456789',
-      celular: '1234567890',
-      direccion: 'Calle Principal',
-      usuario: 'admin',
-      password: '123456'
-    });
-    
-    await cobradorPrueba.save();
-    res.json({ 
-      mensaje: '✅ Usuario de prueba creado exitosamente',
-      usuario: 'admin', 
-      password: '123456' 
-    });
-  } catch (error) {
-    res.status(400).json({ error: error.message });
-  }
-});
-
-// RUTAS POST
-app.post('/api/cobradores', async (req, res) => {
-  try {
-    const cobrador = new Cobrador(req.body);
-    await cobrador.save();
-    res.json(cobrador);
-  } catch (error) {
-    res.status(400).json({ error: error.message });
-  }
-});
-
-// REGISTRO DE OFICINA CON CÓDIGO PROTEGIDO
-app.post('/api/oficinas', async (req, res) => {
-  try {
-    const { nombre, cedula, celular, direccion, usuario, password, codigo } = req.body;
-
-    // Validar que se proporcionó el código
-    if (!codigo) {
-      return res.status(400).json({ error: 'El código de acceso es requerido' });
-    }
-
-    // Validar que el código es correcto
-    if (codigo !== CODIGO_OFICINA) {
-      return res.status(401).json({ error: 'Código de acceso incorrecto' });
-    }
-
-    // Crear la nueva oficina
-    const oficina = new Oficina({
-      nombre,
-      cedula,
-      celular,
-      direccion,
-      usuario,
-      password,
-      rol: 'oficina'
-    });
-
-    await oficina.save();
-    res.json({ 
-      mensaje: '✅ Oficina registrada exitosamente',
-      usuario: oficina.usuario,
-      nombre: oficina.nombre,
-      rol: oficina.rol
-    });
-  } catch (error) {
-    res.status(400).json({ error: error.message });
-  }
-});
-
-// CREAR CLIENTE
-app.post('/api/clientes', async (req, res) => {
-  try {
-    const cliente = new Cliente(req.body);
-    await cliente.save();
-    res.json(cliente);
-  } catch (error) {
-    res.status(400).json({ error: error.message });
-  }
-});
-
+// ============================================
 // RUTA GET PARA OBTENER TODOS LOS CRÉDITOS
 app.get('/api/creditos', async (req, res) => {
   try {
@@ -394,6 +220,33 @@ app.put('/api/creditos/:id', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+// ============================================
+// RUTAS DE TELEGRAM BOT
+// ============================================
+
+// WEBHOOK DE TELEGRAM - Recibe mensajes
+app.post('/api/telegram/webhook', telegramController.webhook);
+
+// CONFIGURAR WEBHOOK
+// POST /api/telegram/setup-webhook?url=https://tudominio.com/api/telegram/webhook
+app.post('/api/telegram/setup-webhook', telegramController.configurarWebhook);
+
+// OBTENER INFORMACIÓN DEL WEBHOOK
+app.get('/api/telegram/webhook-info', telegramController.obtenerInfoWebhook);
+
+// ELIMINAR WEBHOOK
+app.delete('/api/telegram/delete-webhook', telegramController.eliminarWebhook);
+
+// ENVIAR MENSAJE DE PRUEBA
+app.post('/api/telegram/test-message', telegramController.enviarMensajePrueba);
+
+// OBTENER INFO DEL BOT
+app.get('/api/telegram/bot-info', telegramController.obtenerInfoBot);
+
+// ============================================
+// FIN RUTAS DE TELEGRAM
+// ============================================
 
 // MIDDLEWARE DE MANEJO GLOBAL DE ERRORES
 app.use((err, req, res, next) => {
