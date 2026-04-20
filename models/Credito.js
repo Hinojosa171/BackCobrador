@@ -1,19 +1,26 @@
 const mongoose = require('mongoose');
 const CreditoSchema = new mongoose.Schema({
-  monto_prestado: { type: Number, required: true },
-  monto_por_pagar: Number,
-  estado: { type: String, default: 'Pendiente', enum: ['Pendiente', 'Realizado'] },
-  fecha_origen: { type: Date, default: Date.now },
-  fecha_vencimiento: Date,
-  fecha_pago: Date,
+  montoBase: { type: Number, required: true },
+  tasaInteres: { type: Number, required: true },
+  interes: { type: Number, default: 0 },
+  montoTotal: { type: Number, default: 0 },
+  montoPagado: { type: Number, default: 0 },
+  estado: { type: String, default: 'Pendiente', enum: ['Pendiente', 'Pagado', 'Vencido'] },
+  fechaCreacion: { type: Date, default: Date.now },
+  fechaVencimiento: Date,
+  fechaPago: Date,
   clienteID: { type: mongoose.Schema.Types.ObjectId, ref: 'Cliente', required: true },
   cobradorID: { type: mongoose.Schema.Types.ObjectId, ref: 'Cobrador' },
   oficinaID: { type: mongoose.Schema.Types.ObjectId, ref: 'Oficina' }
 });
 
-// Lógica del 30% antes de guardar
-CreditoSchema.pre('save', function(next) {
-  this.monto_por_pagar = this.monto_prestado * 1.3;
+// Lógica para calcular interés automáticamente ANTES de validar
+CreditoSchema.pre('validate', function(next) {
+  if (this.montoBase && this.tasaInteres) {
+    this.interes = this.montoBase * this.tasaInteres;
+    this.montoTotal = this.montoBase + this.interes;
+  }
   next();
 });
+
 module.exports = mongoose.model('Credito', CreditoSchema);

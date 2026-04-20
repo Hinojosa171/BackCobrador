@@ -5,8 +5,10 @@ const ClienteSchema = new mongoose.Schema({
   telefono: String,
   email: String,
   direccion: String,
+  estado: { type: String, default: 'activo', enum: ['activo', 'inactivo', 'bloqueado'] },
+  telegramID: Number,
   cobradorID: { type: mongoose.Schema.Types.ObjectId, ref: 'Cobrador' },
   oficinaID: { type: mongoose.Schema.Types.ObjectId, ref: 'Oficina' },
-  fecha_creacion: { type: Date, default: Date.now }
+  fechaCreacion: { type: Date, default: Date.now }
 });
 module.exports = mongoose.model('Cliente', ClienteSchema);
