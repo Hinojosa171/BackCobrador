@@ -1,7 +1,6 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
-const path = require('path');
 require('dotenv').config();
 
 const app = express();
@@ -37,12 +36,6 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json());
 
-// SERVIR ARCHIVOS ESTÁTICOS DEL FRONTEND (solo en desarrollo local)
-const frontendBuildPath = path.join(__dirname, '../../frontend-movil/build');
-if (process.env.NODE_ENV === 'development') {
-  app.use(express.static(frontendBuildPath));
-  console.log(`📁 Sirviendo archivos estáticos desde: ${frontendBuildPath}`);
-}
 
 const MONGO_URI = process.env.MONGO_URI;
 
@@ -62,13 +55,20 @@ mongoose.connect(MONGO_URI)
     process.exit(1);
   });
 
+// ✅ VERIFICAR CONFIGURACIÓN DE TELEGRAM
+if (process.env.TELEGRAM_TOKEN) {
+  console.log("🤖 Bot de Telegram conectado");
+  console.log(`📱 Token: ${process.env.TELEGRAM_TOKEN.substring(0, 10)}...`);
+} else {
+  console.warn("⚠️  TELEGRAM_TOKEN no configurado en .env");
+}
+
 const Cobrador = require('../models/Cobrador');
 const Cliente = require('../models/Cliente');
 const Credito = require('../models/Credito');
 const Oficina = require('../models/Oficina');
 const Gerente = require('../models/Gerente');
 const Barrio = require('../models/Barrio');
-const Pago = require('../models/Pago');
 const { crearCredito } = require('../controllers/creditoController');
 const { 
   crearGerente,
@@ -83,6 +83,20 @@ const {
   estadisticasGerente
 } = require('../controllers/gerenteController');
 const telegramController = require('../controllers/telegramController');
+const ragController = require('../controllers/ragController');
+const ragRoutes = require('../routes/ragRoutes');
+const TelegramRAGService = require('../services/telegramRAGService');
+
+// ✅ INICIALIZAR BOT TELEGRAM RAG (si está configurado)
+let telegramRAGBot = null;
+if (process.env.TELEGRAM_TOKEN) {
+  try {
+    telegramRAGBot = new TelegramRAGService(process.env.TELEGRAM_TOKEN);
+    console.log('✅ Telegram RAG Bot iniciado y esperando mensajes');
+  } catch (error) {
+    console.error('⚠️  Error iniciando Telegram RAG Bot:', error.message);
+  }
+}
 
 // RUTA DE PRUEBA: Escribe http://localhost:3000/api/test en tu navegador
 app.get('/api/test', (req, res) => {
@@ -245,7 +259,14 @@ app.post('/api/telegram/test-message', telegramController.enviarMensajePrueba);
 app.get('/api/telegram/bot-info', telegramController.obtenerInfoBot);
 
 // ============================================
-// FIN RUTAS DE TELEGRAM
+// RUTAS DE RAG (RETRIEVAL-AUGMENTED GENERATION)
+// ============================================
+
+// Usar rutas de RAG
+app.use('/api/rag', ragRoutes);
+
+// ============================================
+// FIN RUTAS DE RAG
 // ============================================
 
 // MIDDLEWARE DE MANEJO GLOBAL DE ERRORES
@@ -258,12 +279,16 @@ app.use((err, req, res, next) => {
   });
 });
 
-// RUTA CATCH-ALL PARA EL SPA (React Router)
-// Envía index.html para cualquier ruta que no sea /api
-app.get('*', (req, res) => {
-  res.sendFile(path.join(frontendBuildPath, 'index.html'));
-});
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Servidor listo en puerto ${PORT}`));
+app.listen(PORT, () => {
+  console.log(`\n🚀 Servidor listo en puerto ${PORT}`);
+  console.log(`📍 URL local: http://localhost:${PORT}`);
+  console.log('\n✅ Servicios activos:');
+  console.log('   ✓ MongoDB Atlas');
+  console.log('   ✓ Express API');
+  console.log('   ✓ CORS configurado');
+  console.log('   ✓ Telegram Bot');
+  console.log('\n💡 Para probar: http://localhost:3000/api/test\n');
+});
 

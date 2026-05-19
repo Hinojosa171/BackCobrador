@@ -3,6 +3,7 @@ const Cliente = require('../models/Cliente');
 const Credito = require('../models/Credito');
 const Pago = require('../models/Pago');
 const ConversationState = require('../models/ConversationState');
+const Cobrador = require('../models/Cobrador');
 
 const TELEGRAM_API_URL = `https://api.telegram.org/bot${process.env.TELEGRAM_TOKEN}`;
 
@@ -41,12 +42,20 @@ class TelegramService {
     let estado = await ConversationState.findOne({ chatId });
     
     if (!estado) {
+      // Solo crear y enviar mensaje si es la PRIMERA VEZ
       estado = new ConversationState({
         chatId,
         userId,
-        estado: 'menu'
+        estado: 'autenticar_cedula'
       });
       await estado.save();
+      
+      // Enviar solo una vez: cuando se crea el estado
+      await this.enviarMensaje(chatId, 
+        '🔐 <b>Bienvenido a Tu Cobrador Bot</b>\n\n' +
+        'Por favor ingresa tu <b>CÉDULA</b> para autenticarte.\n' +
+        '(La cédula registrada en el sistema)'
+      );
     }
     
     return estado;
@@ -111,6 +120,10 @@ class TelegramService {
 
       // Procesar según el estado actual
       switch (estado.estado) {
+        case 'autenticar_cedula':
+          await this.procesarAutenticacionCedula(chatId, texto, estado);
+          break;
+
         case 'crear_cliente_nombre':
           await this.procesarNombreCliente(chatId, texto, estado);
           break;
@@ -237,9 +250,20 @@ class TelegramService {
 
     switch (cmd) {
       case '/start':
+        // Solo mostrar menú si está autenticado
+        if (estado.cobradorID) {
+          await this.mostrarMenuPrincipal(chatId);
+        }
+        // Si no está autenticado, simplemente ignorar (ya tiene el mensaje de cédula)
+        break;
+      
       case '/help':
       case '/menu':
-        await this.mostrarMenuPrincipal(chatId);
+        if (estado.cobradorID) {
+          await this.mostrarMenuPrincipal(chatId);
+        } else {
+          await this.enviarMensaje(chatId, '🔐 Primero debes autenticarte ingresando tu cédula.');
+        }
         break;
       
       default:
@@ -278,6 +302,68 @@ class TelegramService {
   }
 
   // ============================================
+  // PROCESAR AUTENTICACIÓN
+  // ============================================
+
+  static async procesarAutenticacionCedula(chatId, texto, estado) {
+    try {
+      const cedula = texto.trim();
+
+      // Buscar cobrador con esa cédula
+      const cobrador = await Cobrador.findOne({ cedula: cedula, activo: true });
+
+      if (!cobrador) {
+        await this.enviarMensaje(chatId, 
+          '❌ <b>Cédula no encontrada</b>\n\n' +
+          'No hay un cobrador activo con esa cédula.\n' +
+          'Por favor ingresa tu cédula nuevamente.'
+        );
+        return;
+      }
+
+      // Actualizar estado con el cobradorID
+      await ConversationState.findOneAndUpdate(
+        { chatId },
+        {
+          cobradorID: cobrador._id,
+          cedulaCobrador: cedula,
+          estado: 'menu',
+          datosTemporales: {
+            cobradorNombre: cobrador.nombre,
+            cobradorID: cobrador._id
+          }
+        },
+        { new: true }
+      );
+
+      // Mostrar menú principal
+      const botones = [
+        [
+          { text: '📝 Crear Cliente', callback_data: 'crear_cliente' },
+          { text: '💰 Crear Crédito', callback_data: 'crear_credito' }
+        ],
+        [
+          { text: '🔍 Consultar Cliente', callback_data: 'consultar_cliente' },
+          { text: '💳 Registrar Pago', callback_data: 'registrar_pago' }
+        ]
+      ];
+
+      const mensaje = 
+        '✅ <b>¡Autenticación exitosa!</b>\n\n' +
+        '👤 Bienvenido <b>' + cobrador.nombre + '</b>\n' +
+        '📍 Cédula: ' + cedula + '\n\n' +
+        '🤖 <b>Tu Cobrador Bot</b>\n' +
+        '¿Qué deseas hacer?';
+
+      await this.enviarMensaje(chatId, mensaje, botones);
+      console.log(`✅ Cobrador autenticado: ${cobrador.nombre} (${cedula})`);
+    } catch (error) {
+      console.error('❌ Error en autenticación:', error.message);
+      await this.enviarMensaje(chatId, '❌ Error: ' + error.message);
+    }
+  }
+
+  // ============================================
   // PROCESAR FLUJO: CREAR CLIENTE
   // ============================================
 
@@ -298,8 +384,11 @@ class TelegramService {
       return;
     }
 
-    // Verificar si existe
-    const existe = await Cliente.findOne({ telefono });
+    // Verificar si existe EN EL MISMO COBRADOR
+    const existe = await Cliente.findOne({ 
+      telefono,
+      cobradorID: estado.cobradorID 
+    });
     if (existe) {
       await this.enviarMensaje(chatId, '⚠️ Ya existe un cliente con este teléfono. Intenta con otro.');
       return;
@@ -333,7 +422,8 @@ class TelegramService {
         cedula: cedula.trim(),
         direccion: texto.trim(),
         estado: 'activo',
-        telegramID: chatId
+        telegramID: chatId,
+        cobradorID: estado.cobradorID
       });
 
       await nuevoCliente.save();
@@ -371,8 +461,11 @@ class TelegramService {
   static async procesarTelefonoCredito(chatId, texto, estado) {
     const telefono = texto.trim();
     
-    const cliente = await Cliente.findOne({ telefono });
-    console.log(`🔍 Buscando cliente con teléfono: ${telefono}, Encontrado:`, cliente ? 'SÍ' : 'NO');
+    const cliente = await Cliente.findOne({ 
+      telefono,
+      cobradorID: estado.cobradorID 
+    });
+    console.log(`🔍 Buscando cliente del cobrador con teléfono: ${telefono}, Encontrado:`, cliente ? 'SÍ' : 'NO');
     
     if (!cliente) {
       await this.enviarMensaje(chatId, '❌ Cliente no encontrado con teléfono: ' + telefono);
@@ -412,6 +505,7 @@ class TelegramService {
 
       const nuevoCredito = new Credito({
         clienteID: clienteID,
+        cobradorID: estado.cobradorID,
         montoBase: monto,
         tasaInteres: tasaInteres
       });
@@ -447,11 +541,6 @@ class TelegramService {
       await this.enviarMensaje(chatId, '❌ Error: ' + error.message);
       await this.mostrarMenuPrincipal(chatId);
     }
-  }
-
-  static async procesarTasaCredito(chatId, texto, estado) {
-    // Esta función ya no se usa, pero la mantenemos por compatibilidad
-    await this.mostrarMenuPrincipal(chatId);
   }
 
   // ============================================
@@ -515,8 +604,11 @@ class TelegramService {
   static async procesarTelefonoPago(chatId, texto, estado) {
     const telefono = texto.trim();
     
-    const cliente = await Cliente.findOne({ telefono });
-    console.log(`🔍 Buscando cliente con teléfono: ${telefono}, Encontrado:`, cliente ? 'SÍ' : 'NO');
+    const cliente = await Cliente.findOne({ 
+      telefono,
+      cobradorID: estado.cobradorID 
+    });
+    console.log(`🔍 Buscando cliente del cobrador con teléfono: ${telefono}, Encontrado:`, cliente ? 'SÍ' : 'NO');
     
     if (!cliente) {
       await this.enviarMensaje(chatId, '❌ Cliente no encontrado con teléfono: ' + telefono);
@@ -524,7 +616,8 @@ class TelegramService {
     }
 
     const credito = await Credito.findOne({ 
-      clienteID: cliente._id, 
+      clienteID: cliente._id,
+      cobradorID: estado.cobradorID,
       estado: { $in: ['Pendiente', 'Vencido'] } 
     });
     
@@ -585,6 +678,7 @@ class TelegramService {
       const nuevoPago = new Pago({
         creditoID: creditoID,
         clienteID: clienteID,
+        cobradorID: estado.cobradorID,
         monto: montoPago,
         fecha: new Date(),
         telegramID: chatId

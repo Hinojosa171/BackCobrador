@@ -11,6 +11,10 @@ const PagoSchema = new mongoose.Schema({
     ref: 'Cliente',
     required: true
   },
+  cobradorID: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Cobrador'
+  },
   monto: {
     type: Number,
     required: true

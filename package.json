@@ -1,15 +1,27 @@
 {
   "name": "tu-cobrador-backend",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "description": "Sistema de cobranza con Telegram, MongoDB y Claude AI",
   "main": "api/index.js",
   "scripts": {
-    "start": "node api/index.js"
+    "start": "node api/index.js",
+    "dev": "nodemon api/index.js"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.91.1",
+    "axios": "^1.5.0",
+    "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
-    "dotenv": "^16.6.1",
-    "express": "^4.22.1",
-    "mongodb": "^7.1.0",
-    "mongoose": "^7.8.9"
+    "dotenv": "^16.0.0",
+    "express": "^4.18.2",
+    "jsonwebtoken": "^8.5.1",
+    "mongoose": "^7.5.0",
+    "multer": "^1.4.5-lts.1",
+    "node-telegram-bot-api": "^0.64.0",
+    "pdf-parse": "^1.1.1",
+    "pdfjs-dist": "^3.11.174"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
   }
 }

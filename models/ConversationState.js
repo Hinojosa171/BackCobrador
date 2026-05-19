@@ -12,11 +12,16 @@ const ConversationStateSchema = new mongoose.Schema({
   },
   estado: {
     type: String,
-    enum: ['menu', 'crear_cliente_nombre', 'crear_cliente_telefono', 'crear_cliente_cedula', 'crear_cliente_direccion',
-           'crear_credito_telefono', 'crear_credito_monto', 'crear_credito_tasa',
+    enum: ['autenticar_cedula', 'menu', 'crear_cliente_nombre', 'crear_cliente_telefono', 'crear_cliente_cedula', 'crear_cliente_direccion',
+           'crear_credito_telefono', 'crear_credito_monto',
            'pagar_telefono', 'pagar_monto', 'consultar_telefono'],
-    default: 'menu'
+    default: 'autenticar_cedula'
   },
+  cobradorID: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Cobrador'
+  },
+  cedulaCobrador: String,
   datosTemporales: {
     tipo: String,
     nombre: String,
