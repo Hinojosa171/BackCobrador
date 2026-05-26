@@ -348,19 +348,11 @@ class TelegramRAGService {
         return;
       }
 
-      // Paso 3: Detectar si el PDF tiene preguntas numeradas
-      await this.editarMensaje(chatId, aviso.message_id, '🔍 Analizando contenido...');
-      const preguntas = pdfService.extraerSoloPreguntas(texto);
-      console.log(`✅ Preguntas detectadas: ${preguntas.length}`);
-
-      if (preguntas.length >= 2) {
-        // El PDF tiene preguntas → responderlas con IA
-        await this.responderPreguntasPDF(chatId, preguntas, doc.file_name, aviso.message_id);
-      } else {
-        // El PDF es un documento de conocimiento → indexarlo en MongoDB
-        const chunks = pdfService.procesarTexto(texto, doc.file_name);
-        await this.indexarPDF(chatId, chunks, doc.file_name, aviso.message_id);
-      }
+      // Indexar el PDF como base de conocimiento en MongoDB
+      // Las preguntas las hace el usuario por chat
+      await this.editarMensaje(chatId, aviso.message_id, '✂️ Dividiendo en secciones...');
+      const chunks = pdfService.procesarTexto(texto, doc.file_name);
+      await this.indexarPDF(chatId, chunks, doc.file_name, aviso.message_id);
 
     } catch (error) {
       console.error('❌ Error procesando PDF:', error.message);

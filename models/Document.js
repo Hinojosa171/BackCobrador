@@ -38,7 +38,6 @@ const documentSchema = new mongoose.Schema({
   }
 });
 
-// Índice de texto para búsqueda por palabras clave
-documentSchema.index({ content: 'text' });
+// Sin índice automático — se usa búsqueda por regex como fallback
 
 module.exports = mongoose.model('Document', documentSchema);
