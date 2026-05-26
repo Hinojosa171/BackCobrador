@@ -36,8 +36,7 @@ exports.subirPDF = async (req, res) => {
           category: chunk.categoria,
           section: chunk.section,
           fileName: chunk.fileName,
-          source: chunk.source || 'pdf',
-          embedding: []
+          source: chunk.source || 'pdf'
         });
 
         docsGuardados.push(docGuardado);

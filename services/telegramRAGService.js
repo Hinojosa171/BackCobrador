@@ -470,8 +470,7 @@ class TelegramRAGService {
           category: chunk.categoria,
           section: chunk.section,
           fileName: chunk.fileName,
-          source: 'pdf',
-          embedding: []
+          source: 'pdf'
         });
         guardados++;
       } catch (e) {

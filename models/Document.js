@@ -6,10 +6,6 @@ const documentSchema = new mongoose.Schema({
     required: true,
     maxlength: 5000
   },
-  embedding: {
-    type: [Number],
-    default: []
-  },
   source: {
     type: String,
     enum: ['pdf', 'manual', 'system'],
