@@ -1,7 +1,5 @@
 const fs = require('node:fs');
-// Importar desde lib directamente evita el bug de pdf-parse en producción
-// (busca archivos de test que no existen en Render y crashea)
-const pdfParse = require('pdf-parse/lib/pdf-parse.js');
+const { PdfReader } = require('pdfreader');
 
 // ================================================================
 // SERVICIO DE PDF
@@ -20,12 +18,27 @@ const pdfParse = require('pdf-parse/lib/pdf-parse.js');
 class PDFService {
 
   // ── PASO 1: LEER EL PDF ────────────────────────────────────
-  // Recibe la ruta del archivo y devuelve todo el texto como string
-  static async extraerTexto(filePath) {
-    const buffer = fs.readFileSync(filePath);
-    const data = await pdfParse(buffer);
-    console.log(`📄 PDF leído: ${data.numpages} páginas, ${data.text.length} caracteres`);
-    return data.text;
+  // Usa pdfreader (stream/SAX) en lugar de pdfjs para evitar uso excesivo de memoria
+  static extraerTexto(filePath) {
+    return new Promise((resolve, reject) => {
+      let texto = '';
+      let paginas = 0;
+
+      new PdfReader().parseFileItems(filePath, (err, item) => {
+        if (err) {
+          reject(new Error(`Error leyendo PDF: ${err.message}`));
+        } else if (!item) {
+          // fin del archivo
+          console.log(`📄 PDF leído: ${paginas} páginas, ${texto.length} caracteres`);
+          resolve(texto.trim());
+        } else if (item.page) {
+          paginas = item.page;
+          texto += '\n';
+        } else if (item.text) {
+          texto += item.text + ' ';
+        }
+      });
+    });
   }
 
   // ── PASO 2: DETECTAR PREGUNTAS ─────────────────────────────
