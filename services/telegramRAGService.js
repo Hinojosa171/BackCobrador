@@ -518,13 +518,15 @@ class TelegramRAGService {
       if (chunks.length > 0) {
         await this.editarMensaje(chatId, indicador.message_id, '🤖 Consultando IA...');
         const prompt =
-          `Eres el asistente inteligente del sistema de cobranza TuCobrador.\n\n` +
-          `Usa la siguiente información de la base de conocimiento para responder:\n\n` +
+          `Eres el asistente del sistema de cobranza TuCobrador.\n\n` +
+          `Responde ÚNICAMENTE basándote en el siguiente contexto extraído del documento. ` +
+          `No agregues información externa ni inventes datos.\n\n` +
+          `CONTEXTO DEL DOCUMENTO:\n` +
           `${chunks.map((c, i) => `[${i + 1}] ${c.content}`).join('\n\n')}\n\n` +
           `PREGUNTA: ${pregunta}\n\n` +
-          `Responde de forma clara, directa y en español. ` +
-          `Si la respuesta está en la información, respóndela con exactitud. ` +
-          `Si no está, dilo claramente.`;
+          `Responde en español, de forma corta y directa. ` +
+          `Si la respuesta no está en el contexto, responde exactamente: ` +
+          `"No encontré esa información en el documento cargado."` ;
 
         try {
           respuesta = await claudeService.generarRespuestaSimple(prompt);
@@ -542,9 +544,11 @@ class TelegramRAGService {
           const contextoBD = construirContextoBD(datosBD);
           const prompt =
             `Eres el asistente del sistema de cobranza TuCobrador.\n\n` +
-            `Datos actuales del sistema:\n${contextoBD}\n\n` +
+            `Estos son los datos reales y actuales del sistema:\n\n` +
+            `${contextoBD}\n\n` +
             `PREGUNTA: ${pregunta}\n\n` +
-            `Responde de forma natural y concisa con los datos exactos.`;
+            `Responde en español usando solo los datos anteriores. ` +
+            `Sé directo y no agregues información que no esté en los datos.`;
           try {
             respuesta = await claudeService.generarRespuestaSimple(prompt);
           } catch {

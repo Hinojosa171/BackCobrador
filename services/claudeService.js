@@ -28,21 +28,14 @@ class ClaudeService {
         .map((chunk, i) => `Documento ${i + 1}: ${chunk.content}`)
         .join('\n\n');
 
-      const prompt = `Eres un asistente inteligente que responde preguntas basado en documentos específicos.
-
-CONTEXTO RELEVANTE:
-${contexto}
-
-PREGUNTA DEL USUARIO:
-${pregunta}
-
-INSTRUCCIONES:
-1. Responde basándote ÚNICAMENTE en el contexto proporcionado
-2. Si no encuentras la respuesta en el contexto, di: "No tengo información sobre eso en la base de conocimiento"
-3. Sé conciso y directo
-4. Si hay múltiples respuestas, mencionalas todas
-
-RESPUESTA:`;
+      const prompt =
+        `Eres el asistente del sistema de cobranza TuCobrador.\n\n` +
+        `Responde ÚNICAMENTE con la información del siguiente contexto. ` +
+        `No inventes datos. Si la respuesta no está en el contexto, di exactamente: ` +
+        `"No tengo información sobre eso en el documento cargado."\n\n` +
+        `CONTEXTO:\n${contexto}\n\n` +
+        `PREGUNTA: ${pregunta}\n\n` +
+        `Responde en español, de forma directa y sin rodeos.`;
 
       const message = await this.client.messages.create({
         model: 'claude-3-5-sonnet-20241022',
