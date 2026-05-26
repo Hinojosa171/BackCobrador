@@ -318,20 +318,33 @@ class TelegramRAGService {
       // Paso 1: Descargar el PDF del servidor de Telegram a nuestro servidor
       await this.editarMensaje(chatId, aviso.message_id, '⬇️ Descargando PDF...');
       await this.descargarArchivo(doc.file_id, tempPath);
+      console.log('✅ PDF descargado en:', tempPath);
 
       // Paso 2: Leer el texto del PDF
       await this.editarMensaje(chatId, aviso.message_id, '📄 Leyendo texto del PDF...');
-      const texto = await pdfService.extraerTexto(tempPath);
+      let texto;
+      try {
+        texto = await pdfService.extraerTexto(tempPath);
+        console.log(`✅ Texto extraído: ${texto?.length || 0} caracteres`);
+      } catch (pdfError) {
+        console.error('❌ Error en pdf-parse:', pdfError.message);
+        await this.editarMensaje(chatId, aviso.message_id,
+          `❌ No pude leer el PDF: ${pdfError.message}\n\n¿Es un PDF con texto seleccionable? No funciona con PDFs escaneados.`
+        );
+        return;
+      }
 
       if (!texto || texto.trim().length < 10) {
         await this.editarMensaje(chatId, aviso.message_id,
-          '❌ No pude leer el texto. ¿El PDF es una imagen escaneada?'
+          '❌ El PDF no tiene texto legible. ¿Es una imagen escaneada?'
         );
         return;
       }
 
       // Paso 3: Detectar si el PDF tiene preguntas numeradas
+      await this.editarMensaje(chatId, aviso.message_id, '🔍 Analizando contenido...');
       const preguntas = pdfService.extraerSoloPreguntas(texto);
+      console.log(`✅ Preguntas detectadas: ${preguntas.length}`);
 
       if (preguntas.length >= 2) {
         // El PDF tiene preguntas → responderlas con IA
@@ -344,7 +357,10 @@ class TelegramRAGService {
 
     } catch (error) {
       console.error('❌ Error procesando PDF:', error.message);
-      await this.editarMensaje(chatId, aviso.message_id, `❌ Error: ${error.message}`);
+      console.error(error.stack);
+      await this.editarMensaje(chatId, aviso.message_id,
+        `❌ Error inesperado: ${error.message}`
+      );
     } finally {
       // Siempre eliminar el archivo temporal, haya error o no
       pdfService.eliminarArchivo(tempPath);

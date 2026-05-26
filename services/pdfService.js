@@ -1,5 +1,7 @@
 const fs = require('node:fs');
-const pdfParse = require('pdf-parse');
+// Importar desde lib directamente evita el bug de pdf-parse en producción
+// (busca archivos de test que no existen en Render y crashea)
+const pdfParse = require('pdf-parse/lib/pdf-parse.js');
 
 // ================================================================
 // SERVICIO DE PDF
@@ -48,7 +50,7 @@ class PDFService {
       // Esto evita capturar títulos cortos como "1. Introducción"
       if (contenido.includes('?') || contenido.length > 20) {
         preguntas.push({
-          numero: parseInt(match[1]),
+          numero: Number.parseInt(match[1]),
           pregunta: contenido
         });
       }
@@ -59,7 +61,7 @@ class PDFService {
       const patron2 = /[Pp]regunta\s+(\d+)[:.]\s*(.+)/gm;
       while ((match = patron2.exec(texto)) !== null) {
         preguntas.push({
-          numero: parseInt(match[1]),
+          numero: Number.parseInt(match[1]),
           pregunta: match[2].trim()
         });
       }
