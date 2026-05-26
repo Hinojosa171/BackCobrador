@@ -167,19 +167,35 @@ class TelegramRAGService {
     }
   }
 
-  // Descarta todos los mensajes acumulados mientras el bot estuvo apagado
-  // y luego arranca el polling limpio
+  // Descarta TODOS los mensajes acumulados mientras el bot estuvo apagado.
+  // Sigue pidiendo lotes de 100 hasta que no quede ninguno pendiente.
   async limpiarYArrancar() {
     try {
-      const pendientes = await this.bot.getUpdates({ timeout: 0, limit: 100 });
-      if (pendientes.length > 0) {
-        const ultimoId = pendientes[pendientes.length - 1].update_id;
-        await this.bot.getUpdates({ offset: ultimoId + 1, timeout: 0 });
-        console.log(`🧹 ${pendientes.length} mensajes acumulados descartados`);
+      let totalDescartados = 0;
+      let hayMas = true;
+
+      while (hayMas) {
+        const lote = await this.bot.getUpdates({ timeout: 0, limit: 100 });
+        if (lote.length === 0) {
+          hayMas = false;
+        } else {
+          const ultimoId = lote[lote.length - 1].update_id;
+          // Confirmar a Telegram que ya los procesamos (offset = último + 1)
+          await this.bot.getUpdates({ offset: ultimoId + 1, timeout: 0, limit: 1 });
+          totalDescartados += lote.length;
+          console.log(`🧹 Descartados ${totalDescartados} mensajes acumulados...`);
+        }
+      }
+
+      if (totalDescartados > 0) {
+        console.log(`✅ Cola limpia — ${totalDescartados} mensajes viejos eliminados`);
+      } else {
+        console.log('✅ Cola vacía, no había mensajes pendientes');
       }
     } catch (e) {
-      console.warn('⚠️ No se pudieron limpiar mensajes pendientes:', e.message);
+      console.warn('⚠️ No se pudo limpiar la cola:', e.message);
     }
+
     this.bot.startPolling();
     this.setupHandlers();
     console.log('✅ Bot escuchando mensajes nuevos');
