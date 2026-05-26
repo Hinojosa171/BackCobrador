@@ -155,6 +155,7 @@ function construirContextoBD(datos) {
 class TelegramRAGService {
   constructor(token) {
     this.token = token;
+    this.procesando = new Set(); // evita procesar el mismo archivo dos veces
     try {
       this.bot = new TelegramBot(token, { polling: true });
       this.setupHandlers();
@@ -303,6 +304,12 @@ class TelegramRAGService {
       return;
     }
 
+    // Evitar procesar el mismo archivo dos veces (Telegram a veces envía duplicados)
+    const clave = `${chatId}_${doc.file_id}`;
+    if (this.procesando.has(clave)) return;
+    this.procesando.add(clave);
+    setTimeout(() => this.procesando.delete(clave), 60000); // limpiar después de 1 min
+
     // Aviso inicial que iremos actualizando con el progreso
     const aviso = await this.bot.sendMessage(chatId,
       `📥 Recibí *"${doc.file_name}"*. Procesando...`,
@@ -445,9 +452,10 @@ class TelegramRAGService {
       }
     }
 
-    await this.editarMensaje(chatId, mensajeId,
+    await this.editarMensaje(chatId, mensajeId, '✅ Listo.');
+    await this.bot.sendMessage(chatId,
       `✅ *PDF indexado!*\n\n📊 ${guardados} secciones de _"${fileName}"_ guardadas.\n\nAhora puedes preguntarme sobre el contenido de este documento.`,
-      'Markdown'
+      { parse_mode: 'Markdown' }
     );
     console.log(`✅ "${fileName}" indexado: ${guardados} chunks`);
   }
