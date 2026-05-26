@@ -155,15 +155,34 @@ function construirContextoBD(datos) {
 class TelegramRAGService {
   constructor(token) {
     this.token = token;
-    this.procesando = new Set(); // evita procesar el mismo archivo dos veces
+    this.procesando = new Set();
     try {
-      this.bot = new TelegramBot(token, { polling: true });
-      this.setupHandlers();
+      // Iniciar sin polling para poder limpiar mensajes viejos primero
+      this.bot = new TelegramBot(token, { polling: false });
+      this.limpiarYArrancar();
       console.log('🤖 Telegram RAG Bot inicializado');
     } catch (error) {
       console.error('⚠️  Error al iniciar el bot:', error.message);
       this.bot = null;
     }
+  }
+
+  // Descarta todos los mensajes acumulados mientras el bot estuvo apagado
+  // y luego arranca el polling limpio
+  async limpiarYArrancar() {
+    try {
+      const pendientes = await this.bot.getUpdates({ timeout: 0, limit: 100 });
+      if (pendientes.length > 0) {
+        const ultimoId = pendientes[pendientes.length - 1].update_id;
+        await this.bot.getUpdates({ offset: ultimoId + 1, timeout: 0 });
+        console.log(`🧹 ${pendientes.length} mensajes acumulados descartados`);
+      }
+    } catch (e) {
+      console.warn('⚠️ No se pudieron limpiar mensajes pendientes:', e.message);
+    }
+    this.bot.startPolling();
+    this.setupHandlers();
+    console.log('✅ Bot escuchando mensajes nuevos');
   }
 
   // Registra qué debe hacer el bot cuando recibe cada tipo de mensaje

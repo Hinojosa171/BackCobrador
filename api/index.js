@@ -54,7 +54,7 @@ if (!MONGO_URI) {
   process.exit(1);
 }
 
-mongoose.connect(MONGO_URI)
+mongoose.connect(MONGO_URI, { autoIndex: false })
   .then(() => {
     console.log("✅ Conectado a MongoDB Atlas");
     console.log(`📍 Base de datos: ${MONGO_URI.split('/').pop().split('?')[0]}`);
