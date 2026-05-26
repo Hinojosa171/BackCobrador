@@ -481,7 +481,14 @@ class TelegramRAGService {
 
     await this.editarMensaje(chatId, mensajeId, '✅ Listo.');
     await this.bot.sendMessage(chatId,
-      `✅ *PDF indexado!*\n\n📊 ${guardados} secciones de _"${fileName}"_ guardadas.\n\nAhora puedes preguntarme sobre el contenido de este documento.`,
+      `✅ *"${fileName}" cargado correctamente*\n\n` +
+      `📊 Se guardaron *${guardados} secciones* en la base de conocimiento.\n\n` +
+      `🤖 *Ya puedes preguntarme lo que necesites.*\n\n` +
+      `Por ejemplo:\n` +
+      `• ¿Cuál es la tasa de interés?\n` +
+      `• ¿Cuántos estados tiene un crédito?\n` +
+      `• ¿Cómo se registra un cliente?\n` +
+      `• ¿Qué es TuCobrador?`,
       { parse_mode: 'Markdown' }
     );
     console.log(`✅ "${fileName}" indexado: ${guardados} chunks`);
@@ -498,57 +505,68 @@ class TelegramRAGService {
     const chatId = msg.chat.id;
     const pregunta = msg.text;
 
-    const indicador = await this.bot.sendMessage(chatId, '⏳ Consultando...');
-    console.log(`\n📱 Pregunta recibida: "${pregunta}"`);
+    const indicador = await this.bot.sendMessage(chatId, '🔍 Buscando en la base de conocimiento...');
+    console.log(`\n📱 Pregunta: "${pregunta}"`);
 
     try {
-      // Intentar primero con datos reales de MongoDB
-      const datosBD = await consultarBD(pregunta);
-      let respuesta;
+      let respuesta = null;
 
-      if (datosBD && Object.keys(datosBD).length > 0) {
-        // Hay datos del sistema → construir contexto y preguntarle a Claude
-        const contextoBD = construirContextoBD(datosBD);
+      // PASO 1: Buscar en los PDFs indexados en MongoDB
+      const chunks = await mongoVectorService.buscarPorTexto(pregunta, 5);
+      console.log(`📚 Chunks encontrados: ${chunks.length}`);
+
+      if (chunks.length > 0) {
+        await this.editarMensaje(chatId, indicador.message_id, '🤖 Consultando IA...');
         const prompt =
-          `Eres el asistente del sistema de cobranza TuCobrador. ` +
-          `Responde la pregunta usando estos datos reales del sistema:\n\n` +
-          `${contextoBD}\n\n` +
+          `Eres el asistente inteligente del sistema de cobranza TuCobrador.\n\n` +
+          `Usa la siguiente información de la base de conocimiento para responder:\n\n` +
+          `${chunks.map((c, i) => `[${i + 1}] ${c.content}`).join('\n\n')}\n\n` +
           `PREGUNTA: ${pregunta}\n\n` +
-          `Responde de forma natural, concisa y con los datos exactos.`;
+          `Responde de forma clara, directa y en español. ` +
+          `Si la respuesta está en la información, respóndela con exactitud. ` +
+          `Si no está, dilo claramente.`;
 
         try {
           respuesta = await claudeService.generarRespuestaSimple(prompt);
         } catch {
-          respuesta = contextoBD; // Fallback: mostrar los datos directamente
-        }
-
-      } else {
-        // No es sobre el sistema → buscar en documentos PDF indexados (RAG)
-        console.log('📝 Buscando en documentos PDF indexados...');
-        const chunks = await mongoVectorService.buscarPorTexto(pregunta, 3);
-
-        if (chunks.length === 0) {
-          await this.editarMensaje(chatId, indicador.message_id,
-            '🤷 No encontré información sobre eso.\n\n' +
-            '💡 Puedo responder sobre:\n' +
-            '- Datos del sistema (sedes, cobradores, créditos)\n' +
-            '- Contenido de PDFs que hayas subido'
-          );
-          return;
-        }
-
-        try {
-          respuesta = await claudeService.generarRespuestaRAG(pregunta, chunks);
-        } catch {
-          respuesta = chunks.map(c => c.content).join('\n\n---\n\n');
+          respuesta = chunks.map(c => c.content).join('\n\n');
         }
       }
 
-      await this.editarMensaje(chatId, indicador.message_id, `✅ ${respuesta}`);
-      console.log('✅ Respuesta enviada a Telegram');
+      // PASO 2: Si no hay chunks, consultar datos del sistema en tiempo real
+      if (!respuesta) {
+        console.log('📊 Buscando en datos del sistema...');
+        const datosBD = await consultarBD(pregunta);
+
+        if (datosBD && Object.keys(datosBD).length > 0) {
+          const contextoBD = construirContextoBD(datosBD);
+          const prompt =
+            `Eres el asistente del sistema de cobranza TuCobrador.\n\n` +
+            `Datos actuales del sistema:\n${contextoBD}\n\n` +
+            `PREGUNTA: ${pregunta}\n\n` +
+            `Responde de forma natural y concisa con los datos exactos.`;
+          try {
+            respuesta = await claudeService.generarRespuestaSimple(prompt);
+          } catch {
+            respuesta = contextoBD;
+          }
+        }
+      }
+
+      // PASO 3: Sin información disponible
+      if (!respuesta) {
+        await this.editarMensaje(chatId, indicador.message_id,
+          '🤷 No encontré información sobre eso.\n\n' +
+          '💡 Primero envíame un PDF con el tema que quieres consultar.'
+        );
+        return;
+      }
+
+      await this.editarMensaje(chatId, indicador.message_id, respuesta);
+      console.log('✅ Respuesta enviada');
 
     } catch (error) {
-      console.error('❌ Error procesando pregunta:', error.message);
+      console.error('❌ Error:', error.message);
       await this.editarMensaje(chatId, indicador.message_id, `❌ Error: ${error.message}`);
     }
   }
